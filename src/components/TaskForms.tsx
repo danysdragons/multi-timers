@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Archive, Plus, Star } from 'lucide-react'
+import { Archive, Plus, Star, Trash2 } from 'lucide-react'
 import type { Task } from '../model'
 import { repository } from '../db'
 import { Dialog } from './Dialog'
@@ -201,7 +201,8 @@ export function EditTaskDialog({
   busy,
   run,
   onClose,
-}: Common & { task: Task; active: boolean }) {
+  onDelete,
+}: Common & { task: Task; active: boolean; onDelete: () => void }) {
   const [name, setName] = useState(task.name)
   const [description, setDescription] = useState(task.description)
   const [favorite, setFavorite] = useState(task.favorite)
@@ -287,6 +288,15 @@ export function EditTaskDialog({
         {active && (
           <p className="muted small">Stop this timer to archive the task.</p>
         )}
+        <button
+          type="button"
+          className="text-button danger-text delete-task-link"
+          disabled={busy}
+          onClick={onDelete}
+        >
+          <Trash2 size={17} />
+          Delete task…
+        </button>
       </form>
     </Dialog>
   )

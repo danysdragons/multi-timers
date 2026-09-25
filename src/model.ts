@@ -63,6 +63,11 @@ export const entrySchema = z.discriminatedUnion('kind', [
     durationMs: z.number().int().positive().safe(),
   }),
 ])
+export const appearanceSchema = z.object({
+  theme: z.enum(['forest', 'ocean', 'plum', 'midnight']).default('forest'),
+  density: z.enum(['comfortable', 'compact']).default('comfortable'),
+})
+export type Appearance = z.infer<typeof appearanceSchema>
 export const settingsSchema = z.object({
   id: z.literal('app'),
   schemaVersion: z.literal(1),
@@ -72,6 +77,7 @@ export const settingsSchema = z.object({
   firstUsedAt: timestamp,
   lastChangedAt: timestamp,
   welcomed: z.boolean(),
+  ...appearanceSchema.shape,
 })
 export const dataSchema = z.object({
   tasks: z.array(taskSchema),
@@ -106,6 +112,8 @@ export function initialSettings(
     firstUsedAt: Date.now(),
     lastChangedAt: Date.now(),
     welcomed: false,
+    theme: 'forest',
+    density: 'comfortable',
   }
 }
 

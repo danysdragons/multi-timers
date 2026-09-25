@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TimerRepository } from './db'
 import { dayKey, parseBackup, type Entry } from './model'
 import { duration } from './time'
+import { openDB } from 'idb'
 
 let repo: TimerRepository
 let name: string
@@ -270,5 +271,101 @@ describe('backups', () => {
     const last = snapshot.data.entries.at(-1)!
     if (last.kind === 'timed') last.startedAt -= 1000
     expect(() => parseBackup(JSON.stringify(snapshot))).toThrow('overlapping')
+  })
+})
+
+describe('task deletion and appearance', () => {
+  it('deletes all of one task’s days and entries, preserving other tasks and their active timer', async () => {
+    const { x, y } = await tasks()
+    await repo.saveEntry(manual(x))
+    await repo.addTasks([x, y], '2026-09-26')
+    await repo.start(x)
+    vi.setSystemTime(now + 5000)
+    await repo.start(y)
+    const otherActiveId = await activeId()
+    await repo.deleteTask(x)
+    const data = await new TimerRepository(name).read()
+    expect(data.tasks.map((task) => task.id)).toEqual([y])
+    expect(data.days.every((day) => day.taskId === y)).toBe(true)
+    expect(data.entries.every((entry) => entry.taskId === y)).toBe(true)
+    expect(data.settings.activeEntryId).toBe(otherActiveId)
+    expect(() =>
+      parseBackup(
+        JSON.stringify({
+          format: 'multi-timers',
+          version: 1,
+          exportedAt: now + 5000,
+          data,
+        }),
+      ),
+    ).toThrow('stopped timers')
+    vi.setSystemTime(now + 6000)
+    await repo.stop(otherActiveId)
+    expect((await repo.snapshot()).data.tasks).toHaveLength(1)
+  })
+  it('rejects deletion of a running task, including a stale request from another tab', async () => {
+    const { x } = await tasks()
+    const otherTab = new TimerRepository(name)
+    await otherTab.start(x)
+    const before = await repo.read()
+    await expect(repo.deleteTask(x)).rejects.toThrow('Stop')
+    expect(await repo.read()).toEqual(before)
+  })
+  it('rolls the whole deletion back when storage fails', async () => {
+    const { x } = await tasks()
+    await repo.saveEntry(manual(x))
+    const before = await repo.read()
+    vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(() => {
+      throw new DOMException('Write failed', 'UnknownError')
+    })
+    await expect(repo.deleteTask(x)).rejects.toThrow('Write failed')
+    expect(await repo.read()).toEqual(before)
+  })
+  it('persists independent theme and density updates without changing timer data', async () => {
+    const { x } = await tasks()
+    await repo.start(x)
+    const before = await repo.read()
+    const otherTab = new TimerRepository(name)
+    await Promise.all([
+      repo.updateAppearance({ theme: 'midnight' }),
+      otherTab.updateAppearance({ density: 'compact' }),
+    ])
+    const data = await new TimerRepository(name).read()
+    expect(data.settings.theme).toBe('midnight')
+    expect(data.settings.density).toBe('compact')
+    expect(data.settings.activeEntryId).toBe(before.settings.activeEntryId)
+    expect(data.entries).toEqual(before.entries)
+    expect(data.tasks).toEqual(before.tasks)
+  })
+  it('reads and updates existing databases that predate appearance preferences', async () => {
+    await tasks()
+    const db = await openDB(name)
+    const settings = await db.get('settings', 'app')
+    delete settings.theme
+    delete settings.density
+    await db.put('settings', settings)
+    db.close()
+    const before = await repo.read()
+    expect(before.settings.theme).toBe('forest')
+    expect(before.settings.density).toBe('comfortable')
+    await repo.updateAppearance({ theme: 'ocean' })
+    expect((await repo.read()).settings.theme).toBe('ocean')
+    expect((await repo.read()).tasks).toEqual(before.tasks)
+  })
+  it('restores older backups with defaults and newer backups with saved preferences', async () => {
+    const { x } = await tasks()
+    await repo.saveEntry(manual(x))
+    await repo.updateAppearance({ theme: 'plum', density: 'compact' })
+    const snapshot = await repo.snapshot()
+    const legacy = JSON.parse(JSON.stringify(snapshot))
+    delete legacy.data.settings.theme
+    delete legacy.data.settings.density
+    await repo.restore(JSON.stringify(legacy))
+    expect((await repo.read()).settings.theme).toBe('forest')
+    expect((await repo.read()).settings.density).toBe('comfortable')
+    await repo.restore(JSON.stringify(snapshot))
+    expect((await repo.read()).settings.theme).toBe('plum')
+    expect((await repo.read()).settings.density).toBe('compact')
+    expect((await repo.read()).entries).toEqual(snapshot.data.entries)
   })
 })

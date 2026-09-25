@@ -10,6 +10,9 @@ A personal time tracker for the tasks you come back to. Start, stop, and resume 
 - Favorite reusable tasks in **Task library**, then **Add favorites** on any day. Select daily tasks and **Copy selected to tomorrow** to choose a destination date. Only the task references are copied; totals and completion start fresh.
 - Navigate previous dates to inspect and correct history. A session spanning midnight contributes to each day in the saved tracking time zone, including daylight-saving transitions.
 - **Settings & backups** exports and restores your data. Restore validates the complete file and requires confirmation before replacing existing records. It never merges datasets.
+- Open a task and choose **Delete task…** to permanently remove it and all its time history across every day. The confirmation shows the affected time and records; stop its timer first. Choose **Archive instead** to hide it while keeping its history.
+- Toggle **Compact** in the header for tighter task rows and a smaller timer panel. On phones, use the list icon beside Settings.
+- Choose **Forest**, **Ocean**, **Plum**, or the dark **Midnight** theme in **Settings & backups → Appearance**. Theme and layout preferences persist across reloads and are included in backups. Existing data and older backups remain compatible.
 
 ## Where the data lives
 

@@ -4,7 +4,7 @@ Verified locally and on GitHub Pages on September 25, 2026.
 
 ## Automated
 
-`npm run check` passes: strict TypeScript checking, 20 Vitest tests, and the production Vite build. No production-build warnings remain.
+`npm run check` passes: strict TypeScript checking, 26 Vitest tests, and the production Vite build. No production-build warnings remain.
 
 Covered behavior:
 
@@ -15,6 +15,8 @@ Covered behavior:
 - Completion/reopening, archive/rename history, overlapping/future edits, and stale/deleted entries.
 - Rollback after clock errors and simulated storage failures; retrying Stop retains the original requested timestamp.
 - Snapshotting a running timer, stopped restore, rejection of malformed/orphaned/duplicate records, and validation of a 50,000-entry backup.
+- Task deletion removes its entries and daily placements atomically while preserving another task's active timer. Stale-tab deletion of a running task is rejected; simulated deletion failure rolls back all records.
+- Theme and density preferences persist across connections and concurrent updates. Existing databases and older backups acquire defaults without losing data; new backups preserve appearance choices.
 
 ## Browser checks
 
@@ -30,6 +32,9 @@ Checked through the Codex in-app browser using disposable local data:
 - Desktop at 1440px, mobile at 390px, and no horizontal overflow at 320px.
 - Export action updates the last-export indicator; invalid import displays an error; valid import previews counts and restores a 30-minute manual entry with no running timer.
 - No browser errors/warnings after the final reload.
+- Appearance follow-up: switched Ocean, Plum, and Midnight themes; confirmed saved Midnight/Compact preferences after reload. Desktop task rows shrink from 89px to 56px and the idle timer panel from 176px to about 104px.
+- Deletion confirmation shows the correct history summary, requires the checkbox, and blocks a running task. Cancel returns to its details without changing history. Cascade deletion itself is covered by database integration tests.
+- Compact layout and appearance/deletion dialogs fit a 320px viewport without horizontal overflow; inspected Midnight and Ocean on mobile.
 
 The production build uses `/multi-timers/` asset paths and bundled fonts. Safari/Firefox have not been separately exercised; timezone calculations and persistence use compatibility libraries, and the browser test above is Chromium-based.
 

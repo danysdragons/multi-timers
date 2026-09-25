@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Download, HardDrive, ShieldCheck, Upload } from 'lucide-react'
+import {
+  Download,
+  HardDrive,
+  ShieldCheck,
+  Upload,
+  Palette,
+  Check,
+} from 'lucide-react'
 import { parseBackup, type Backup, type Data } from '../model'
 import { repository } from '../db'
 import { friendlyTime } from '../time'
@@ -51,6 +58,81 @@ export function SettingsDialog({
   return (
     <Dialog title="Settings & backups" wide busy={busy} onClose={onClose}>
       <div className="form-stack settings">
+        <section>
+          <div className="section-label">
+            <Palette size={19} />
+            <h3>Appearance</h3>
+          </div>
+          <p>
+            Make this workspace feel like yours. Your choices are saved on this
+            device.
+          </p>
+          <fieldset className="appearance-fieldset">
+            <legend>Theme</legend>
+            <div className="theme-options">
+              {(
+                [
+                  ['forest', 'Forest', 'Warm & familiar'],
+                  ['ocean', 'Ocean', 'Cool & clear'],
+                  ['plum', 'Plum', 'A softer palette'],
+                  ['midnight', 'Midnight', 'Easy on the eyes'],
+                ] as const
+              ).map(([theme, label, description]) => (
+                <label
+                  key={theme}
+                  className={`theme-option ${data.settings.theme === theme ? 'chosen' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={theme}
+                    checked={data.settings.theme === theme}
+                    disabled={busy}
+                    onChange={() =>
+                      void run(() => repository.updateAppearance({ theme }))
+                    }
+                  />
+                  <span
+                    className={`theme-preview preview-${theme}`}
+                    aria-hidden="true"
+                  >
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="theme-name">
+                    {label}
+                    {data.settings.theme === theme && <Check size={15} />}
+                  </span>
+                  <span className="theme-description">{description}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="appearance-fieldset">
+            <legend>Layout density</legend>
+            <div className="density-options">
+              {(['comfortable', 'compact'] as const).map((density) => (
+                <label key={density} className="check-label">
+                  <input
+                    type="radio"
+                    name="density"
+                    checked={data.settings.density === density}
+                    disabled={busy}
+                    onChange={() =>
+                      void run(() => repository.updateAppearance({ density }))
+                    }
+                  />
+                  {density === 'compact' ? 'Compact' : 'Comfortable'}
+                </label>
+              ))}
+            </div>
+            <p className="muted small">
+              Compact uses a smaller timer panel and tighter rows so more tasks
+              fit on screen.
+            </p>
+          </fieldset>
+        </section>
         <section>
           <div className="section-label">
             <HardDrive size={19} />

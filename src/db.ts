@@ -6,13 +6,16 @@ import {
 } from 'idb'
 import {
   assertNoOverlap,
+  appearanceSchema,
   dateSchema,
   dayKey,
   entrySchema,
   initialSettings,
   parseBackup,
+  settingsSchema,
   taskSchema,
   type Backup,
+  type Appearance,
   type Data,
   type Day,
   type Entry,
@@ -83,7 +86,8 @@ export class TimerRepository {
       throw new Error(
         'The local database is missing its settings. Restore a backup to recover your data.',
       )
-    return { tasks, days, entries, settings }
+    // Additive defaults keep existing databases and v1 backups compatible.
+    return { tasks, days, entries, settings: settingsSchema.parse(settings) }
   }
   private async write<T>(
     action: (tx: Tx, settings: Settings) => Promise<T>,
@@ -93,7 +97,9 @@ export class TimerRepository {
     // The shared readwrite scope serializes all writers, including other tabs.
     const tx = db.transaction(stores, 'readwrite', { durability: 'strict' })
     try {
-      const settings = (await tx.objectStore('settings').get('app'))!
+      const settings = settingsSchema.parse(
+        await tx.objectStore('settings').get('app'),
+      )
       const result = await action(tx, settings)
       if (changed) settings.lastChangedAt = Date.now()
       await tx.objectStore('settings').put(settings)
@@ -338,6 +344,39 @@ export class TimerRepository {
       if (settings.activeEntryId === entryId)
         throw new Error('Stop this timer before deleting its entry.')
       await tx.objectStore('entries').delete(entryId)
+    })
+  }
+  async updateAppearance(values: Partial<Appearance>) {
+    return this.write(async (_tx, settings) => {
+      Object.assign(
+        settings,
+        appearanceSchema.parse({ ...settings, ...values }),
+      )
+    })
+  }
+  async deleteTask(taskId: string) {
+    return this.write(async (tx, settings) => {
+      await this.task(tx, taskId)
+      const entries = await tx
+        .objectStore('entries')
+        .index('taskId')
+        .getAll(taskId)
+      if (
+        entries.some(
+          (entry) =>
+            entry.id === settings.activeEntryId ||
+            (entry.kind === 'timed' && entry.endedAt === null),
+        )
+      )
+        throw new Error('Stop this task’s timer before deleting it.')
+      const days = await tx.objectStore('days').getAll()
+      await Promise.all([
+        ...entries.map((entry) => tx.objectStore('entries').delete(entry.id)),
+        ...days
+          .filter((day) => day.taskId === taskId)
+          .map((day) => tx.objectStore('days').delete(day.key)),
+        tx.objectStore('tasks').delete(taskId),
+      ])
     })
   }
   async welcome() {

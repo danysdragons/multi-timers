@@ -38,6 +38,8 @@ Renaming a task updates its display name across history while preserving identit
 
 Removing an empty day entry is allowed. An entry with recorded time cannot be removed through the planning action; the user can mark it done or explicitly correct/delete its time entries. There is no automatic deletion or daily reset of history.
 
+Follow-up task deletion: task details and editing offer a permanent **Delete task…** action. Show the task name, lifetime duration, time-entry count, and planned-day count, and require an explicit confirmation checkbox. Delete the task, every daily placement, and all its time entries atomically. A running task must be stopped first, checked again inside the transaction. Offer archiving as the history-preserving alternative. Other tasks and their timers remain unchanged. Deletion has no undo except restoring a prior backup.
+
 ## 4. Main screen and interaction
 
 The application opens on Today. Its layout, from top to bottom, is:
@@ -54,6 +56,8 @@ Each task row shows its name, selected-day total, status, and appropriate Start/
 Time uses `HH:MM:SS`, with hours allowed to exceed 23. Arithmetic retains milliseconds and rounds down only for display after summing. Never round every session before summing.
 
 The layout works on desktop and phone screens down to 320 CSS pixels. All controls work with a keyboard, have visible focus, and use accessible names. Running/done states use text or icons as well as color. Screen readers receive start/stop announcements, without announcements every second. Touch targets are at least 44 × 44 CSS pixels.
+
+Follow-up appearance options: provide Comfortable and Compact layouts, with a quick header toggle and a Settings control. Compact reduces heading, timer-panel, and task-row spacing and hides secondary row metadata while retaining names, totals, status, and actions. Details keep the full information. Offer Forest (default), Ocean, Plum, and Midnight (dark) themes in Settings. Save both preferences in IndexedDB, share them across tabs, and include them in backups. Older data and backups default to Forest and Comfortable without losing records.
 
 ## 5. Timer behavior
 
@@ -137,9 +141,9 @@ Import validates the entire file, schema version, record references, IDs, durati
 | Day entry | Unique taskId + localDate, status, sortOrder, createdAt, updatedAt |
 | Timed entry | UUID, taskId, taskNameSnapshot, startedAt, endedAt (null while active), note, createdAt, updatedAt |
 | Manual entry | UUID, taskId, taskNameSnapshot, localDate, durationMs, note, createdAt, updatedAt |
-| App state | Singleton activeEntryId, trackingTimeZone, schemaVersion, lastExportAt |
+| App state | Singleton activeEntryId, trackingTimeZone, schemaVersion, lastExportAt, theme, density |
 
-Time entries are the source of truth. Daily and lifetime totals are derived, including the current running interval. A future performance cache must be rebuildable and cannot replace raw records. Index by task, date, and session start/end as needed. All references must resolve; archive instead of cascading away historical tasks.
+Time entries are the source of truth. Daily and lifetime totals are derived, including the current running interval. A future performance cache must be rebuildable and cannot replace raw records. Index by task, date, and session start/end as needed. All references must resolve. Archiving preserves historical tasks; only explicitly confirmed permanent task deletion cascades through their related records.
 
 This structure supports future grouping by task/date and future migration to SQLite without building those reports now. Full revision history of edits is outside v1; updatedAt records the latest change.
 
@@ -185,6 +189,9 @@ Verify the actual published URL, nested-path assets, browser refresh, timer pers
 14. Deploy a new version: records in the same browser remain intact.
 15. Push to `main`: checks pass and the live GitHub Pages site updates automatically.
 16. Complete the primary task flow with keyboard only and on a narrow mobile viewport.
+17. Delete a stopped task after confirmation: its time and daily records disappear together; other tasks remain intact. Running-task deletion is rejected and failed writes roll back completely.
+18. Toggle Compact: more task rows fit on screen while the active timer stays prominent and controls remain usable on mobile.
+19. Switch among all four themes and reload: preferences persist, with existing records and older backups still usable.
 
 Verification will combine focused tests for arithmetic, date boundaries, state transitions, transactions, copying, and backup validation with browser checks for persistence, concurrent tabs, accessibility, and the deployed site. No reports or graph features are required for acceptance.
 

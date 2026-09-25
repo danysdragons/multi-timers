@@ -11,6 +11,7 @@ import {
   Database,
   Edit3,
   EllipsisVertical,
+  List,
   Pause,
   Play,
   Plus,
@@ -39,10 +40,11 @@ import { Dialog, OperationError } from './components/Dialog'
 import { AddTaskDialog, EditTaskDialog, type Run } from './components/TaskForms'
 import { TimeEntryForm } from './components/TimeEntryForm'
 import { exportBackup, SettingsDialog } from './components/Settings'
+import { DeleteTaskDialog } from './components/DeleteTaskDialog'
 
 type Modal =
   | { type: 'add' | 'settings' | 'copy' }
-  | { type: 'task' | 'edit-task'; taskId: string }
+  | { type: 'task' | 'edit-task' | 'delete-task'; taskId: string }
   | { type: 'entry'; taskId: string; entry?: Entry }
   | { type: 'delete'; entry: Entry }
 type Total = { ms: number; count: number }
@@ -100,11 +102,32 @@ export default function App() {
   const loaded = useRef(false)
   const readNumber = useRef(0)
   const now = useClock()
+  useEffect(() => {
+    document.documentElement.dataset.theme = data?.settings.theme ?? 'forest'
+    document.documentElement.dataset.density =
+      data?.settings.density ?? 'comfortable'
+  }, [data?.settings.theme, data?.settings.density])
   const refresh = useCallback(async () => {
     const number = ++readNumber.current
     const result = await repository.read()
     if (number !== readNumber.current) return
     setData(result)
+    const taskIds = new Set(result.tasks.map((task) => task.id))
+    setSelected((ids) =>
+      ids.some((id) => !taskIds.has(id))
+        ? ids.filter((id) => taskIds.has(id))
+        : ids,
+    )
+    setModal((current) => {
+      const taskId =
+        current &&
+        ('taskId' in current
+          ? current.taskId
+          : 'entry' in current
+            ? current.entry.taskId
+            : null)
+      return taskId && !taskIds.has(taskId) ? null : current
+    })
     if (!loaded.current) {
       loaded.current = true
       setRecoveryId(result.settings.activeEntryId)
@@ -369,13 +392,35 @@ export default function App() {
               Task library
             </button>
           </nav>
-          <button
-            className="icon-button settings-button"
-            aria-label="Settings and backups"
-            onClick={() => open({ type: 'settings' })}
-          >
-            <SettingsIcon size={23} />
-          </button>
+          <div className="display-controls">
+            <button
+              className="button density-toggle"
+              aria-label="Compact view"
+              aria-pressed={data.settings.density === 'compact'}
+              disabled={busy}
+              title="Toggle compact view"
+              onClick={() =>
+                void run(() =>
+                  repository.updateAppearance({
+                    density:
+                      data.settings.density === 'compact'
+                        ? 'comfortable'
+                        : 'compact',
+                  }),
+                )
+              }
+            >
+              <List size={18} />
+              <span>Compact</span>
+            </button>
+            <button
+              className="icon-button settings-button"
+              aria-label="Settings and backups"
+              onClick={() => open({ type: 'settings' })}
+            >
+              <SettingsIcon size={23} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1055,6 +1100,26 @@ export default function App() {
           busy={busy}
           run={run}
           onClose={close}
+          onDelete={() => open({ type: 'delete-task', taskId: modalTask.id })}
+        />
+      )}
+      {modal?.type === 'delete-task' && modalTask && (
+        <DeleteTaskDialog
+          task={modalTask}
+          entries={data.entries.filter(
+            (entry) => entry.taskId === modalTask.id,
+          )}
+          dayCount={
+            data.days.filter((day) => day.taskId === modalTask.id).length
+          }
+          active={active?.taskId === modalTask.id}
+          busy={busy}
+          run={run}
+          onClose={() => open({ type: 'task', taskId: modalTask.id })}
+          onDeleted={() => {
+            setSelected((ids) => ids.filter((id) => id !== modalTask.id))
+            close()
+          }}
         />
       )}
       {modal?.type === 'entry' && modalTask && (
@@ -1137,6 +1202,16 @@ export default function App() {
             >
               <Edit3 size={16} />
               Edit task
+            </button>
+            <button
+              className="button danger-text"
+              disabled={busy}
+              onClick={() =>
+                open({ type: 'delete-task', taskId: modalTask.id })
+              }
+            >
+              <Trash2 size={16} />
+              Delete task…
             </button>
           </div>
           <h3 className="entries-heading">
