@@ -1,6 +1,6 @@
 # First-iteration verification
 
-Verified locally on September 25, 2026.
+Verified locally and on GitHub Pages on September 25, 2026.
 
 ## Automated
 
@@ -35,4 +35,8 @@ The production build uses `/multi-timers/` asset paths and bundled fonts. Safari
 
 ## Deployment
 
-The workflow is ready to check all pushed branches and publish successful `main` pushes automatically. Remote creation and live-site verification are pending an explicit repository visibility decision. Remaining deployment checks: create/configure repository and Pages, observe a successful deployment, verify the published site, then verify automatic deployment on a second push and record persistence across the update.
+The public repository is [danysdragons/multi-timers](https://github.com/danysdragons/multi-timers). GitHub Pages publishes the [live app](https://danysdragons.github.io/multi-timers/) over HTTPS using GitHub Actions. The `github-pages` environment permits deployment from `main` only.
+
+The [initial automatic run](https://github.com/danysdragons/multi-timers/actions/runs/36157357656) passed both the check and deploy jobs. The published app loaded successfully in the browser with its fonts, styles, and task controls, without browser errors or warnings. A new browser origin starts with an empty task list; local-development data is separate.
+
+Every push triggers checks. Successful `main` pushes deploy automatically; feature branches and pull requests do not publish. The workflow serializes deployments and skips superseded builds. Publishing replaces static assets; the app keeps browser records in the same versioned IndexedDB database.

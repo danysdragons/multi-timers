@@ -42,9 +42,9 @@ npm run check
 
 ## Deployment
 
-Planned repository: `danysdragons/multi-timers`.
-Planned app URL: `https://danysdragons.github.io/multi-timers/`.
-Repository creation and live deployment are pending confirmation of repository visibility. See `VERIFICATION.md` for current verification status.
+Repository: [danysdragons/multi-timers](https://github.com/danysdragons/multi-timers).
+Live app: [Multi Timers](https://danysdragons.github.io/multi-timers/).
+The public repository and HTTPS GitHub Pages deployment are configured. See `VERIFICATION.md` for verification details.
 
 Every push runs checks. Successful pushes to `main` build and deploy automatically through `.github/workflows/pages.yml`. Other branches and pull requests run checks without changing the published site. A failed check leaves the previous deployment available. Deployment jobs are serialized and superseded commits are skipped. A manual run is available in GitHub Actions.
 
