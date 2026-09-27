@@ -105,6 +105,7 @@ export type IntakeEntryValues = Pick<
 export const appearanceSchema = z.object({
   theme: z.enum(['forest', 'ocean', 'plum', 'midnight']).default('forest'),
   density: z.enum(['comfortable', 'compact']).default('comfortable'),
+  intakeOrder: z.enum(['latest-first', 'latest-last']).default('latest-first'),
 })
 export type Appearance = z.infer<typeof appearanceSchema>
 export const settingsSchema = z.object({
@@ -155,6 +156,7 @@ export function initialSettings(
     welcomed: false,
     theme: 'forest',
     density: 'comfortable',
+    intakeOrder: 'latest-first',
   }
 }
 

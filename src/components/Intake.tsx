@@ -70,8 +70,14 @@ export function IntakeView({
     const [start, end] = dayBounds(date, zone)
     return data.intakeEntries
       .filter((e) => e.takenAt >= start && e.takenAt < end)
-      .sort((a, b) => b.takenAt - a.takenAt || b.createdAt - a.createdAt)
-  }, [data.intakeEntries, date, zone])
+      .sort((a, b) => {
+        const order =
+          b.takenAt - a.takenAt ||
+          b.createdAt - a.createdAt ||
+          b.id.localeCompare(a.id)
+        return data.settings.intakeOrder === 'latest-first' ? order : -order
+      })
+  }, [data.intakeEntries, date, zone, data.settings.intakeOrder])
   const items = data.intakeItems
     .filter(
       (i) =>
@@ -213,7 +219,9 @@ export function IntakeView({
                       disabled={busy || date > today}
                       onClick={() => open({ kind: 'log', item })}
                     >
-                      <Plus size={16} /> Log intake
+                      <Plus size={16} />{' '}
+                      <span className="intake-log-full">Log intake</span>
+                      <span className="intake-log-short">Log</span>
                     </button>
                   )}
                   {archived && (
@@ -250,7 +258,25 @@ export function IntakeView({
               </span>
             </div>
           </div>
-          <p className="muted small intake-zone">Latest first · {zone}</p>
+          <div className="intake-history-controls">
+            <p className="muted small intake-zone">{zone}</p>
+            <select
+              aria-label="Intake history order"
+              value={data.settings.intakeOrder}
+              disabled={busy}
+              onChange={(e) =>
+                void run(() =>
+                  repository.updateAppearance({
+                    intakeOrder: e.target
+                      .value as Data['settings']['intakeOrder'],
+                  }),
+                )
+              }
+            >
+              <option value="latest-first">Latest first</option>
+              <option value="latest-last">Latest last</option>
+            </select>
+          </div>
           {date > today && (
             <p className="notice">
               Choose today or an earlier day to log intake.
