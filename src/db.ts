@@ -14,6 +14,12 @@ import {
   parseBackup,
   settingsSchema,
   taskSchema,
+  intakeItemSchema,
+  intakeEntrySchema,
+  type IntakeItem,
+  type IntakeEntry,
+  type IntakeItemValues,
+  type IntakeEntryValues,
   type Backup,
   type Appearance,
   type Data,
@@ -26,6 +32,12 @@ import {
 import { dayBounds, localDate, timeOnDay } from './time'
 
 interface Schema extends DBSchema {
+  intakeItems: { key: string; value: IntakeItem }
+  intakeEntries: {
+    key: string
+    value: IntakeEntry
+    indexes: { itemId: string; takenAt: number }
+  }
   tasks: { key: string; value: Task }
   days: { key: string; value: Day; indexes: { date: string } }
   entries: {
@@ -35,7 +47,14 @@ interface Schema extends DBSchema {
   }
   settings: { key: string; value: Settings }
 }
-const stores = ['tasks', 'days', 'entries', 'settings'] as const
+const stores = [
+  'tasks',
+  'days',
+  'entries',
+  'settings',
+  'intakeItems',
+  'intakeEntries',
+] as const
 type Tx = IDBPTransaction<Schema, typeof stores, 'readwrite'>
 export class TimerRepository {
   private promise?: Promise<IDBPDatabase<Schema>>
@@ -44,19 +63,29 @@ export class TimerRepository {
     private onChange = () => {},
   ) {}
   private open() {
-    return (this.promise ??= openDB<Schema>(this.name, 1, {
-      upgrade(db) {
-        db.createObjectStore('tasks', { keyPath: 'id' })
-        db.createObjectStore('days', { keyPath: 'key' }).createIndex(
-          'date',
-          'date',
-        )
-        const entries = db.createObjectStore('entries', { keyPath: 'id' })
-        entries.createIndex('taskId', 'taskId')
-        entries.createIndex('kind', 'kind')
-        db.createObjectStore('settings', { keyPath: 'id' }).put(
-          initialSettings(),
-        )
+    return (this.promise ??= openDB<Schema>(this.name, 2, {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          db.createObjectStore('tasks', { keyPath: 'id' })
+          db.createObjectStore('days', { keyPath: 'key' }).createIndex(
+            'date',
+            'date',
+          )
+          const entries = db.createObjectStore('entries', { keyPath: 'id' })
+          entries.createIndex('taskId', 'taskId')
+          entries.createIndex('kind', 'kind')
+          db.createObjectStore('settings', { keyPath: 'id' }).put(
+            initialSettings(),
+          )
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore('intakeItems', { keyPath: 'id' })
+          const entries = db.createObjectStore('intakeEntries', {
+            keyPath: 'id',
+          })
+          entries.createIndex('itemId', 'itemId')
+          entries.createIndex('takenAt', 'takenAt')
+        }
       },
       blocking: () => {
         void this.promise?.then((db) => db.close())
@@ -75,19 +104,29 @@ export class TimerRepository {
   async read(): Promise<Data> {
     const db = await this.open()
     const tx = db.transaction(stores)
-    const [tasks, days, entries, settings] = await Promise.all([
-      tx.objectStore('tasks').getAll(),
-      tx.objectStore('days').getAll(),
-      tx.objectStore('entries').getAll(),
-      tx.objectStore('settings').get('app'),
-    ])
+    const [tasks, days, entries, settings, intakeItems, intakeEntries] =
+      await Promise.all([
+        tx.objectStore('tasks').getAll(),
+        tx.objectStore('days').getAll(),
+        tx.objectStore('entries').getAll(),
+        tx.objectStore('settings').get('app'),
+        tx.objectStore('intakeItems').getAll(),
+        tx.objectStore('intakeEntries').getAll(),
+      ])
     await tx.done
     if (!settings)
       throw new Error(
         'The local database is missing its settings. Restore a backup to recover your data.',
       )
     // Additive defaults keep existing databases and v1 backups compatible.
-    return { tasks, days, entries, settings: settingsSchema.parse(settings) }
+    return {
+      tasks,
+      days,
+      entries,
+      settings: settingsSchema.parse(settings),
+      intakeItems,
+      intakeEntries,
+    }
   }
   private async write<T>(
     action: (tx: Tx, settings: Settings) => Promise<T>,
@@ -379,6 +418,106 @@ export class TimerRepository {
       ])
     })
   }
+  async saveIntakeItem(values: IntakeItemValues, original?: IntakeItem) {
+    return this.write(async (tx) => {
+      const current = original
+        ? await tx.objectStore('intakeItems').get(original.id)
+        : undefined
+      if (original && (!current || current.updatedAt !== original.updatedAt))
+        throw new Error(
+          'This item changed in another tab. Close and reopen it before editing.',
+        )
+      const now = Date.now()
+      const item = intakeItemSchema.parse({
+        ...values,
+        id: current?.id ?? crypto.randomUUID(),
+        archivedAt: current?.archivedAt ?? null,
+        createdAt: current?.createdAt ?? now,
+        updatedAt: Math.max(now, (current?.updatedAt ?? -1) + 1),
+      })
+      const items = await tx.objectStore('intakeItems').getAll()
+      if (
+        items.some(
+          (i) =>
+            i.id !== item.id &&
+            i.name.toLocaleLowerCase() === item.name.toLocaleLowerCase(),
+        )
+      )
+        throw new Error(
+          'An intake item with this name already exists. Use it or choose a distinct name.',
+        )
+      await tx.objectStore('intakeItems').put(item)
+      return item
+    })
+  }
+  async archiveIntakeItem(original: IntakeItem, archived: boolean) {
+    return this.write(async (tx) => {
+      const item = await tx.objectStore('intakeItems').get(original.id)
+      if (!item || item.updatedAt !== original.updatedAt)
+        throw new Error(
+          'This item changed in another tab. Close and reopen it.',
+        )
+      await tx
+        .objectStore('intakeItems')
+        .put({
+          ...item,
+          archivedAt: archived ? Date.now() : null,
+          updatedAt: Math.max(Date.now(), item.updatedAt + 1),
+        })
+    })
+  }
+  async saveIntakeEntry(
+    itemId: string,
+    values: IntakeEntryValues,
+    original?: IntakeEntry,
+  ) {
+    return this.write(async (tx) => {
+      const item = await tx.objectStore('intakeItems').get(itemId)
+      if (!item)
+        throw new Error(
+          'This intake item no longer exists. Reopen the library.',
+        )
+      const current = original
+        ? await tx.objectStore('intakeEntries').get(original.id)
+        : undefined
+      if (
+        original &&
+        (!current ||
+          current.updatedAt !== original.updatedAt ||
+          current.itemId !== itemId)
+      )
+        throw new Error(
+          'This entry changed or was deleted in another tab. Close and reopen it.',
+        )
+      if (!original && item.archivedAt)
+        throw new Error('Restore this item before logging it.')
+      const now = Date.now()
+      const entry = intakeEntrySchema.parse({
+        name: current?.name ?? item.name,
+        category: current?.category ?? item.category,
+        ...values,
+        id: current?.id ?? crypto.randomUUID(),
+        itemId,
+        createdAt: current?.createdAt ?? now,
+        updatedAt: Math.max(now, (current?.updatedAt ?? -1) + 1),
+      })
+      if (entry.takenAt > now)
+        throw new Error('Choose an intake time no later than now.')
+      await tx.objectStore('intakeEntries').put(entry)
+      return entry
+    })
+  }
+  async deleteIntakeEntry(original: IntakeEntry) {
+    return this.write(async (tx) => {
+      const current = await tx.objectStore('intakeEntries').get(original.id)
+      if (!current) return
+      if (current.updatedAt !== original.updatedAt)
+        throw new Error(
+          'This entry changed in another tab. Reopen it before deleting.',
+        )
+      await tx.objectStore('intakeEntries').delete(original.id)
+    })
+  }
   async welcome() {
     return this.write(async (_tx, s) => {
       s.welcomed = true
@@ -402,7 +541,7 @@ export class TimerRepository {
     data.settings.activeEntryId = null
     data.settings.lastExportAt = exportedAt
     return parseBackup(
-      JSON.stringify({ format: 'multi-timers', version: 1, exportedAt, data }),
+      JSON.stringify({ format: 'multi-timers', version: 2, exportedAt, data }),
       exportedAt,
     )
   }
@@ -411,13 +550,27 @@ export class TimerRepository {
     return this.write(async (tx, settings) => {
       if (settings.activeEntryId)
         throw new Error('Stop your running timer before restoring a backup.')
-      for (const name of ['tasks', 'days', 'entries'] as const)
+      for (const name of [
+        'tasks',
+        'days',
+        'entries',
+        'intakeItems',
+        'intakeEntries',
+      ] as const)
         await tx.objectStore(name).clear()
       await Promise.all([
         ...backup.data.tasks.map((task) => tx.objectStore('tasks').put(task)),
         ...backup.data.days.map((day) => tx.objectStore('days').put(day)),
         ...backup.data.entries.map((entry) =>
           tx.objectStore('entries').put(entry),
+        ),
+      ])
+      await Promise.all([
+        ...backup.data.intakeItems.map((item) =>
+          tx.objectStore('intakeItems').put(item),
+        ),
+        ...backup.data.intakeEntries.map((entry) =>
+          tx.objectStore('intakeEntries').put(entry),
         ),
       ])
       Object.assign(settings, backup.data.settings, { welcomed: true })

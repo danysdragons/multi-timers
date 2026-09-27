@@ -198,3 +198,17 @@ Verification will combine focused tests for arithmetic, date boundaries, state t
 ## 13. Delivery boundary
 
 This document was the deliverable for the initial specification phase. Implementation was subsequently authorized with React + TypeScript + Vite. The two major product decisions in section 2 are confirmed. Publishing targets main. Repository visibility is resolved before remote creation; see VERIFICATION.md for the current delivery status.
+
+## 14. Intake extension (approved September 27, 2026)
+
+Add a dedicated **Intake** tab for event logging. Share the app shell, theme, density, date navigation, tracking time zone, storage, and backups. Keep intake items and events separate from task/day/session records. Multiple intakes may share a timestamp; logging does not start, stop, or switch a timer. A running task remains prominent on the Intake tab.
+
+An intake item has a stable UUID, name, category (Medication, Supplement, Caffeine, Alcohol, Food, Other), usual positive decimal quantity, explicit free-text unit, optional product strength/concentration, archive state, and creation/update timestamps. No predefined doses, nutritional targets, unit conversions, or medical recommendations are provided. Name uniqueness is case-insensitive within the intake library. Items can be edited, archived, filtered, searched, and restored.
+
+A log entry has a stable UUID and item reference, an intake timestamp stored as an instant, quantity, unit, optional strength and note, creation/update timestamps, and snapshots of the item's name/category. Existing snapshots survive item edits. Log dialogs prefill the item's defaults, permit changes per entry, and default to the current time when saving today. Earlier dates prefill noon on the selected date for review. Reject future timestamps and invalid/nonpositive quantities. Use the saved zone for display and daily boundaries; reject nonexistent local times and require explicit first/second occurrence for ambiguous hours.
+
+Show the daily timeline newest first and each item's most recent recorded intake. Entries can be corrected or deleted with confirmation. Offer immediate undo for a newly created entry; reject stale corrections/deletions if another tab has changed it. Archiving preserves history and prevents new logging until restored.
+
+Upgrade the existing IndexedDB database in place to structural version 2, preserving tasks, sessions, settings, and daily plans. Export version 2 JSON backups with intake items and entries. Accept legacy version 1 backups with absent intake collections normalized to empty. Restore validates quantities, timestamps, IDs, duplicates, and references before atomically replacing all stores; explain that older backups also replace current intake data. Maintain the requirement to stop an active timer before restore.
+
+Acceptance: create and log an item with fractional quantity, inspect and correct its history, retain snapshots after item edits, preserve a concurrent timer, persist across reload, synchronize tabs, migrate v1 data without loss, round-trip v2 backups, reject corrupt backups and stale edits, and support all themes/densities at mobile widths. Independent observations and pattern exploration, schedules/reminders, analytics, inventory, sync, and calorie tracking are deferred.

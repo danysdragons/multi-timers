@@ -102,3 +102,21 @@ export function friendlyTime(time: number, zone: string) {
     timeZoneName: 'short',
   }).format(time)
 }
+
+/** Local intake input: reject gaps; repeated hours need an explicit occurrence. */
+export function parseIntakeTime(
+  value: string,
+  zone: string,
+  occurrence: 'reject' | 'earlier' | 'later' = 'reject',
+) {
+  try {
+    const local = Temporal.PlainDateTime.from(value)
+    const zoned = local.toZonedDateTime(zone, { disambiguation: occurrence })
+    if (!zoned.toPlainDateTime().equals(local)) throw new Error('gap')
+    return zoned.epochMilliseconds
+  } catch {
+    throw new Error(
+      'This local time is missing or occurs twice because of daylight saving. Check the time, or choose its first or second occurrence below.',
+    )
+  }
+}

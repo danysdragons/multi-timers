@@ -4,7 +4,7 @@ Verified locally and on GitHub Pages on September 25, 2026.
 
 ## Automated
 
-`npm run check` passes: strict TypeScript checking, 26 Vitest tests, and the production Vite build. No production-build warnings remain.
+`npm run check` passes: strict TypeScript checking, 36 Vitest tests, and the production Vite build. No production-build warnings remain.
 
 Covered behavior:
 
@@ -45,3 +45,12 @@ The public repository is [danysdragons/multi-timers](https://github.com/danysdra
 The [initial automatic run](https://github.com/danysdragons/multi-timers/actions/runs/36157357656) passed both the check and deploy jobs. The published app loaded successfully in the browser with its fonts, styles, and task controls, without browser errors or warnings. A new browser origin starts with an empty task list; local-development data is separate.
 
 Every push triggers checks. Successful `main` pushes deploy automatically; feature branches and pull requests do not publish. The workflow serializes deployments and skips superseded builds. Publishing replaces static assets; the app keeps browser records in the same versioned IndexedDB database.
+
+
+## Intake extension — September 27, 2026
+
+Ten additional integration tests cover v1 database migration (including a running timer), independent intake operations, historical snapshots after library edits, fractional quantities, simultaneous events, stale-tab edits/deletions, storage failure rollback, v2 backup round trips, legacy v1 restore, invalid intake backup rejection, restore rollback, local midnight, and daylight-saving gaps/repeated hours. All 36 tests, strict TypeScript, and the production build pass.
+
+Browser verification used disposable records at the local development origin: create a Caffeine item with a default unit, log half a cup with a note, reload and verify persistence, correct to 0.75 cup, and log on an earlier date with the saved tracking zone. The desktop layout, 320px mobile workspace and logging dialog, compact density, and Ocean/Midnight themes were inspected. The UI shows explicit time-zone labels and the undo action after a new log. A task timer remained visible and running while logging intake; it was stopped successfully from the Intake tab. No browser errors or warnings were reported. Deletion and undo's persistence operation are tested at the database level.
+
+New backups use format version 2. Existing database storage remains at the same origin and name, with an in-place structural upgrade to version 2. Full restores of older backups explicitly replace intake history as well as task history. Refresh older open app tabs after upgrading.

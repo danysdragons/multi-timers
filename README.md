@@ -63,3 +63,13 @@ Repository settings: enable Actions; set **Pages → Source → GitHub Actions**
 - `output/multi-model-imagegen/`: approved visual direction and generation prompts; these are not shipped in the app bundle.
 
 Reports and graphs, automatic synchronization, PWA/offline installation, and full edit audit history are intentionally deferred. Cumulative totals and underlying entries remain available for future reporting. Timers depend on the device clock; detected backward jumps are rejected rather than silently corrupting durations.
+
+## Intake
+
+The **Intake** tab records supplements, medications, caffeine, alcohol, food, and other items independently of task timers. Create an item with a usual quantity and unit, plus optional product strength. Choose **Log intake**, adjust the amount if needed, and save with the current time or an earlier timestamp. Notes provide context without requiring calorie tracking or a schedule. A running task remains visible and keeps timing.
+
+Daily history shows the newest entries first in the saved tracking time zone. Each entry preserves the name, category, quantity, unit, and strength recorded at that time. Editing a library item does not rewrite history. Edit or delete individual entries; **Undo last log** removes the most recent entry created in the current Intake visit. Archive an item to hide it from logging while preserving its history; restore it through the archive filter. Quantities use positive decimal numbers and explicit units; strength is descriptive text, with no automatic conversions or dosage recommendations.
+
+The existing database name stays `multi-timers-v1`; its IndexedDB structure upgrades to version 2, adding intake stores without replacing task data. New JSON backups use format version 2 and include both types of history. Version 1 backups still restore; a full restore replaces **all** records, including intake, even when an older backup contains none. Export a fresh backup before replacing data. Prior versions of the app cannot import v2 backups; refresh any older open tabs after upgrading.
+
+Observations about how you feel, correlations, reports, reminders, schedules, inventory, and cross-device sync remain future work. All intake data stays in the current browser just like task records; JSON backups also contain this history.

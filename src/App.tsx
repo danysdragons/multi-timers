@@ -40,6 +40,7 @@ import { Dialog, OperationError } from './components/Dialog'
 import { AddTaskDialog, EditTaskDialog, type Run } from './components/TaskForms'
 import { TimeEntryForm } from './components/TimeEntryForm'
 import { exportBackup, SettingsDialog } from './components/Settings'
+import { IntakeView } from './components/Intake'
 import { DeleteTaskDialog } from './components/DeleteTaskDialog'
 
 type Modal =
@@ -87,7 +88,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
-  const [view, setView] = useState<'day' | 'library'>('day')
+  const [view, setView] = useState<'day' | 'library' | 'intake'>('day')
   const [chosenDate, setChosenDate] = useState<string | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [modal, setModal] = useState<Modal | null>(null)
@@ -169,7 +170,7 @@ export default function App() {
     } catch (e) {
       setError(
         e instanceof z.ZodError
-          ? 'Check the fields and try again. Names, dates, and durations must be valid.'
+          ? 'Check the fields and try again. Names, dates, quantities, units, and durations must be valid.'
           : e instanceof Error
             ? e.message
             : 'The change could not be saved. Please try again.',
@@ -341,7 +342,7 @@ export default function App() {
     now - (data.settings.lastExportAt ?? data.settings.firstUsedAt) >
       7 * 86400000 &&
     data.settings.lastChangedAt > (data.settings.lastExportAt ?? 0) &&
-    data.entries.length > 0
+    (data.entries.length > 0 || data.intakeEntries.length > 0)
   const clockError = active?.kind === 'timed' && Date.now() < active.startedAt
   const taskEntries = modalTask
     ? data.entries
@@ -356,7 +357,7 @@ export default function App() {
   return (
     <OperationError.Provider value={error}>
       <a className="skip-link" href="#main">
-        Skip to tasks
+        Skip to content
       </a>
       <header className="site-header">
         <div className="nav-inner">
@@ -390,6 +391,16 @@ export default function App() {
               }}
             >
               Task library
+            </button>
+            <button
+              className={view === 'intake' ? 'nav-item current' : 'nav-item'}
+              aria-current={view === 'intake' ? 'page' : undefined}
+              onClick={() => {
+                setView('intake')
+                setSelected([])
+              }}
+            >
+              Intake
             </button>
           </nav>
           <div className="display-controls">
@@ -452,16 +463,18 @@ export default function App() {
         <div className="page-heading">
           <div>
             <h1>
-              {view === 'library'
-                ? 'Task library'
-                : isToday
-                  ? 'Today'
-                  : friendlyDate(date, {
-                      weekday: undefined,
-                      month: 'long',
-                      day: 'numeric',
-                      year: undefined,
-                    })}
+              {view === 'intake'
+                ? 'Intake'
+                : view === 'library'
+                  ? 'Task library'
+                  : isToday
+                    ? 'Today'
+                    : friendlyDate(date, {
+                        weekday: undefined,
+                        month: 'long',
+                        day: 'numeric',
+                        year: undefined,
+                      })}
             </h1>
             <p>
               {view === 'library'
@@ -469,12 +482,15 @@ export default function App() {
                 : friendlyDate(date)}
             </p>
           </div>
-          {view === 'day' ? (
+          {view !== 'library' ? (
             <div className="date-navigation">
               <button
                 className="icon-button bordered"
                 aria-label="Previous day"
-                onClick={() => navigate(addDays(date, -1))}
+                onClick={() => {
+                  setChosenDate(addDays(date, -1))
+                  setSelected([])
+                }}
               >
                 <ChevronLeft size={20} />
               </button>
@@ -485,21 +501,30 @@ export default function App() {
                   type="date"
                   value={date}
                   onChange={(e) => {
-                    if (e.target.value) navigate(e.target.value)
+                    if (e.target.value) {
+                      setChosenDate(e.target.value)
+                      setSelected([])
+                    }
                   }}
                 />
               </label>
               <button
                 className="icon-button bordered"
                 aria-label="Next day"
-                onClick={() => navigate(addDays(date, 1))}
+                onClick={() => {
+                  setChosenDate(addDays(date, 1))
+                  setSelected([])
+                }}
               >
                 <ChevronRight size={20} />
               </button>
               {!isToday && (
                 <button
                   className="button today-link"
-                  onClick={() => navigate(null)}
+                  onClick={() => {
+                    setChosenDate(null)
+                    setSelected([])
+                  }}
                 >
                   Today
                 </button>
@@ -516,74 +541,76 @@ export default function App() {
           )}
         </div>
 
-        <section
-          className={`active-panel ${activeTask ? 'is-running' : 'is-idle'}`}
-          aria-label="Active timer"
-        >
-          <div className="active-description">
-            <div className="eyebrow">
-              {activeTask ? (
-                <>
-                  <span className="running-dot" />
-                  RUNNING
-                </>
-              ) : (
-                <>
-                  <Pause size={13} />
-                  READY WHEN YOU ARE
-                </>
-              )}
+        {(view !== 'intake' || activeTask) && (
+          <section
+            className={`active-panel ${activeTask ? 'is-running' : 'is-idle'}`}
+            aria-label="Active timer"
+          >
+            <div className="active-description">
+              <div className="eyebrow">
+                {activeTask ? (
+                  <>
+                    <span className="running-dot" />
+                    RUNNING
+                  </>
+                ) : (
+                  <>
+                    <Pause size={13} />
+                    READY WHEN YOU ARE
+                  </>
+                )}
+              </div>
+              <h2>{activeTask?.name ?? 'A little time, well spent.'}</h2>
+              <p>
+                {active ? (
+                  <>
+                    Current session{' '}
+                    <span className="mono">
+                      {formatDuration(duration(active, now))}
+                    </span>
+                  </>
+                ) : (
+                  'Choose a task below and make a start.'
+                )}
+              </p>
             </div>
-            <h2>{activeTask?.name ?? 'A little time, well spent.'}</h2>
-            <p>
-              {active ? (
-                <>
-                  Current session{' '}
-                  <span className="mono">
-                    {formatDuration(duration(active, now))}
-                  </span>
-                </>
-              ) : (
-                'Choose a task below and make a start.'
-              )}
-            </p>
-          </div>
-          <div className="active-total">
-            <span className="big-time">
-              {activeTask
-                ? formatDuration(totalFor(activeTask.id, true).ms)
-                : '00:00:00'}
-            </span>
-            <span className="eyebrow">
-              {activeTask ? 'TOTAL TODAY' : 'ONE TASK AT A TIME'}
-            </span>
-          </div>
-          {active ? (
-            <button
-              className="button stop-button"
-              disabled={busy}
-              onClick={() => void stopTimer()}
-            >
-              <Square size={17} fill="currentColor" />
-              {pendingStop?.id === active.id ? 'Retry stop' : 'Stop timer'}
-            </button>
-          ) : (
-            <button
-              className="button stop-button"
-              onClick={() => {
-                if (view === 'library' || !isToday) navigate(null)
-                if (!dayTasks.length || !isToday) open({ type: 'add' })
-                else
-                  document
-                    .getElementById('task-list')
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              }}
-            >
-              <Play size={18} />
-              {dayTasks.length && isToday ? 'Choose a task' : 'Add a task'}
-            </button>
-          )}
-        </section>
+            <div className="active-total">
+              <span className="big-time">
+                {activeTask
+                  ? formatDuration(totalFor(activeTask.id, true).ms)
+                  : '00:00:00'}
+              </span>
+              <span className="eyebrow">
+                {activeTask ? 'TOTAL TODAY' : 'ONE TASK AT A TIME'}
+              </span>
+            </div>
+            {active ? (
+              <button
+                className="button stop-button"
+                disabled={busy}
+                onClick={() => void stopTimer()}
+              >
+                <Square size={17} fill="currentColor" />
+                {pendingStop?.id === active.id ? 'Retry stop' : 'Stop timer'}
+              </button>
+            ) : (
+              <button
+                className="button stop-button"
+                onClick={() => {
+                  if (view !== 'day' || !isToday) navigate(null)
+                  if (!dayTasks.length || !isToday) open({ type: 'add' })
+                  else
+                    document
+                      .getElementById('task-list')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
+              >
+                <Play size={18} />
+                {dayTasks.length && isToday ? 'Choose a task' : 'Add a task'}
+              </button>
+            )}
+          </section>
+        )}
 
         {recoveryId && active?.id === recoveryId && active.kind === 'timed' && (
           <section className="notice recovery">
@@ -635,9 +662,7 @@ export default function App() {
         )}
         {backupDue && (
           <div className="notice backup-reminder">
-            <span>
-              It’s been a while. Keep a fresh copy of your time history.
-            </span>
+            <span>It’s been a while. Keep a fresh copy of your history.</span>
             <button
               className="text-button"
               disabled={busy}
@@ -649,7 +674,17 @@ export default function App() {
           </div>
         )}
 
-        {view === 'day' ? (
+        {view === 'intake' ? (
+          <IntakeView
+            data={data}
+            date={date}
+            today={today}
+            zone={zone}
+            busy={busy}
+            run={run}
+            clearError={() => setError('')}
+          />
+        ) : view === 'day' ? (
           <>
             <div className="section-heading">
               <div>
@@ -931,6 +966,7 @@ export default function App() {
                     {!task.archivedAt && (
                       <button
                         className="button"
+                        aria-label={`Add ${task.name} to today`}
                         disabled={busy}
                         onClick={async () => {
                           if (

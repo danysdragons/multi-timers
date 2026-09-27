@@ -63,6 +63,45 @@ export const entrySchema = z.discriminatedUnion('kind', [
     durationMs: z.number().int().positive().safe(),
   }),
 ])
+export const intakeCategories = [
+  'Medication',
+  'Supplement',
+  'Caffeine',
+  'Alcohol',
+  'Food',
+  'Other',
+] as const
+const intakeFields = {
+  name: z.string().trim().min(1).max(120),
+  category: z.enum(intakeCategories),
+  quantity: z.number().positive().finite().max(Number.MAX_SAFE_INTEGER),
+  unit: z.string().trim().min(1).max(40),
+  strength: z.string().trim().max(160),
+}
+export const intakeItemSchema = z.object({
+  id,
+  ...intakeFields,
+  archivedAt: timestamp.nullable(),
+  ...stamps,
+})
+export const intakeEntrySchema = z.object({
+  id,
+  itemId: id,
+  ...intakeFields,
+  takenAt: timestamp,
+  note: z.string().max(2000),
+  ...stamps,
+})
+export type IntakeItem = z.infer<typeof intakeItemSchema>
+export type IntakeEntry = z.infer<typeof intakeEntrySchema>
+export type IntakeItemValues = Pick<
+  IntakeItem,
+  'name' | 'category' | 'quantity' | 'unit' | 'strength'
+>
+export type IntakeEntryValues = Pick<
+  IntakeEntry,
+  'quantity' | 'unit' | 'strength' | 'takenAt' | 'note'
+>
 export const appearanceSchema = z.object({
   theme: z.enum(['forest', 'ocean', 'plum', 'midnight']).default('forest'),
   density: z.enum(['comfortable', 'compact']).default('comfortable'),
@@ -84,10 +123,12 @@ export const dataSchema = z.object({
   days: z.array(daySchema),
   entries: z.array(entrySchema),
   settings: settingsSchema,
+  intakeItems: z.array(intakeItemSchema),
+  intakeEntries: z.array(intakeEntrySchema),
 })
 export const backupSchema = z.object({
   format: z.literal('multi-timers'),
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: timestamp,
   data: dataSchema,
 })
@@ -140,20 +181,33 @@ export function assertNoOverlap(entries: Entry[], candidate: TimedEntry) {
 export function parseBackup(text: string, now = Date.now()): Backup {
   let result: Backup
   try {
-    result = backupSchema.parse(JSON.parse(text))
+    const raw = JSON.parse(text)
+    if (raw?.version === 1 && raw.data) {
+      raw.data.intakeItems ??= []
+      raw.data.intakeEntries ??= []
+    }
+    result = backupSchema.parse(raw)
   } catch {
     throw new Error(
-      'This is not a valid Multi Timers v1 backup. Your existing data has not changed.',
+      'This is not a valid supported Multi Timers backup. Your existing data has not changed.',
     )
   }
-  const { tasks, days, entries, settings } = result.data
+  const { tasks, days, entries, settings, intakeItems, intakeEntries } =
+    result.data
   const unique = (values: string[]) => new Set(values).size === values.length
   if (
     !unique(tasks.map((t) => t.id)) ||
     !unique(days.map((d) => d.key)) ||
-    !unique(entries.map((e) => e.id))
+    !unique(entries.map((e) => e.id)) ||
+    !unique(intakeItems.map((i) => i.id)) ||
+    !unique(intakeEntries.map((i) => i.id))
   )
     throw new Error('The backup contains duplicate records.')
+  const itemIds = new Set(intakeItems.map((i) => i.id))
+  if (intakeEntries.some((e) => !itemIds.has(e.itemId) || e.takenAt > now))
+    throw new Error(
+      'The backup contains an invalid intake reference or future intake time.',
+    )
   const taskIds = new Set(tasks.map((t) => t.id))
   if (
     days.some(

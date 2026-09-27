@@ -139,9 +139,9 @@ export function SettingsDialog({
             <h3>Your data stays here</h3>
           </div>
           <p>
-            Tasks and time are saved in this browser on this device. They are
-            not synced to GitHub or other devices. Clearing site data or using
-            private browsing can erase your history.
+            Tasks, time, and intake are saved in this browser on this device.
+            They are not synced to GitHub or other devices. Clearing site data
+            or using private browsing can erase your history.
           </p>
           <div className="setting-row">
             <span>Tracking time zone</span>
@@ -181,9 +181,9 @@ export function SettingsDialog({
         <section>
           <h3>Keep a backup</h3>
           <p>
-            Download all tasks and time entries as a JSON file. A running timer
-            is saved through the export instant; it continues here and restores
-            as stopped.
+            Download all tasks, time entries, intake items, and intake history
+            as a JSON file. A running timer is saved through the export instant;
+            it continues here and restores as stopped.
           </p>
           <button
             className="button primary"
@@ -241,8 +241,16 @@ export function SettingsDialog({
               <strong>{backup.name}</strong>
               <p>
                 {backup.parsed.data.tasks.length} tasks ·{' '}
-                {backup.parsed.data.entries.length} time entries
+                {backup.parsed.data.entries.length} time entries ·{' '}
+                {backup.parsed.data.intakeItems.length} intake items ·{' '}
+                {backup.parsed.data.intakeEntries.length} intake entries
               </p>
+              {backup.parsed.version === 1 && (
+                <p className="small">
+                  This older backup may have no intake records. Restoring
+                  replaces your current intake history too.
+                </p>
+              )}
               <p className="small">
                 Exported{' '}
                 {friendlyTime(
