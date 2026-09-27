@@ -17,12 +17,8 @@ import {
   type IntakeItemValues,
 } from '../model'
 import { repository } from '../db'
-import {
-  dayBounds,
-  editTimestamp,
-  friendlyTime,
-  parseIntakeTime,
-} from '../time'
+import { intakeDayTotals } from '../intake-totals'
+import { editTimestamp, friendlyTime, parseIntakeTime } from '../time'
 import { Dialog } from './Dialog'
 import type { Run } from './TaskForms'
 
@@ -66,18 +62,17 @@ export function IntakeView({
     }
     return result
   }, [data.intakeEntries])
-  const entries = useMemo(() => {
-    const [start, end] = dayBounds(date, zone)
-    return data.intakeEntries
-      .filter((e) => e.takenAt >= start && e.takenAt < end)
-      .sort((a, b) => {
-        const order =
-          b.takenAt - a.takenAt ||
-          b.createdAt - a.createdAt ||
-          b.id.localeCompare(a.id)
-        return data.settings.intakeOrder === 'latest-first' ? order : -order
-      })
-  }, [data.intakeEntries, date, zone, data.settings.intakeOrder])
+  const { chronological, totals } = useMemo(
+    () => intakeDayTotals(data.intakeEntries, date, zone),
+    [data.intakeEntries, date, zone],
+  )
+  const entries = useMemo(
+    () =>
+      data.settings.intakeOrder === 'latest-first'
+        ? [...chronological].reverse()
+        : chronological,
+    [chronological, data.settings.intakeOrder],
+  )
   const items = data.intakeItems
     .filter(
       (i) =>
@@ -310,7 +305,15 @@ export function IntakeView({
                       <span className="intake-category">{entry.category}</span>
                       <h3>{entry.name}</h3>
                       <p className="intake-amount">
-                        {entry.quantity} {entry.unit}
+                        <span>
+                          {entry.quantity} {entry.unit}
+                        </span>
+                        <span
+                          className="intake-running-total"
+                          title="Cumulative intake for this item on this day, through this entry. Different units are listed separately."
+                        >
+                          Total so far: <strong>{totals.get(entry.id)}</strong>
+                        </span>
                       </p>
                       {entry.strength && (
                         <p className="muted small">{entry.strength}</p>

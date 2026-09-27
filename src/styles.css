@@ -2368,3 +2368,19 @@ select {
 :root[data-density='compact'] .intake-event-body > .muted {
   margin: 2px 0;
 }
+
+.intake-amount {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.intake-running-total {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.intake-running-total strong {
+  font-weight: 600;
+  color: var(--text);
+}

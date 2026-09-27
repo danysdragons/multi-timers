@@ -58,3 +58,7 @@ New backups use format version 2. Existing database storage remains at the same 
 ## Intake ordering and density follow-up
 
 Verified Latest first and Latest last against two differently timestamped intake entries, including persistence of Latest last across reload. Existing settings default to Latest first. In the desktop sample, comfortable item cards measured about 208px tall versus 89px in compact mode; compact rows also fit a 320px viewport without horizontal overflow, with Log and Edit controls visible. No browser errors or warnings. All 36 tests, TypeScript checking, and production build pass.
+
+## Intake running totals
+
+All 42 tests pass, including six focused tests for chronological accumulation, invariance under display reversal and later doses, per-item identity, local midnight, deterministic same-time ordering, corrections/deletions/backdating, separate units, and exact decimal addition. Browser verification confirmed totals of 0.75 and 1.75 stayed unchanged when a later entry brought the total to 2.75, in both display orders. Labels fit the 320px compact layout without horizontal overflow; no browser errors or warnings were reported.
